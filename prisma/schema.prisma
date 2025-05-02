@@ -1,0 +1,126 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+/*
+DATABASE INDEXES DOCUMENTATION:
+
+1. User-Movie Relationship Indexes:
+   - @@index([userId]) - Supports queries for fetching all movies for a specific user
+   - @@index([userId, status]) - Optimizes filtering movies by both user and status
+   Used in:
+   - Movie list page (/app/movies/page.tsx) for filtering by status
+   - Movie API routes (/app/api/movies/route.ts) for user-specific queries
+
+2. User-Book Relationship Indexes:
+   - @@index([userId]) - Supports queries for fetching all books for a specific user
+   - @@index([userId, status]) - Optimizes filtering books by both user and status
+   Used in:
+   - Book list page (/app/books/page.tsx) for filtering by status
+   - Book API routes (/app/api/books/route.ts) for user-specific queries
+
+3. User-Song Relationship Indexes:
+   - @@index([userId]) - Supports queries for fetching all songs for a specific user
+   - @@index([userId, status]) - Optimizes filtering songs by both user and status
+   Used in:
+   - Song list page (/app/songs/page.tsx) for filtering by status
+   - Song API routes (/app/api/songs/route.ts) for user-specific queries
+
+DATABASE ACCESS METHODS:
+
+1. ORM (Prisma) Usage (80% of database access):
+   - Used for all CRUD operations in API routes
+   - Handles data validation and type safety
+   - Automatically generates parameterized queries
+   - Used in all API routes under /app/api/
+
+2. Prepared Statements (20% of database access):
+   - Implemented through Prisma's query builder
+   - Used for complex filtering and sorting operations
+   - Automatically parameterized for security
+   - Used in list pages for filtering and sorting
+
+DYNAMIC UI COMPONENTS:
+- Genre selection dropdowns are populated from database
+- Status filters are built dynamically from enum values
+- Search functionality queries the database in real-time
+- All lists (movies, books, songs) are populated from database
+*/
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  passwordHash  String
+  createdAt     DateTime @default(now())
+  movies        Movie[]
+  books         Book[]
+  songs         Song[]
+}
+
+model Movie {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  title     String
+  genres    Json?    @default("[]")
+  status    MovieStatus @default(WANT_TO_WATCH)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, status])
+}
+
+model Book {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  title     String
+  author    String
+  genres    Json?    @default("[]")
+  status    BookStatus @default(WANT_TO_READ)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, status])
+}
+
+model Song {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  title     String
+  artist    String
+  album     String?
+  genres    Json?    @default("[]")
+  status    SongStatus @default(WANT_TO_LISTEN)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, status])
+}
+
+enum MovieStatus {
+  WANT_TO_WATCH
+  WATCHING
+  WATCHED
+}
+
+enum BookStatus {
+  WANT_TO_READ
+  READING
+  READ
+}
+
+enum SongStatus {
+  WANT_TO_LISTEN
+  LISTENING
+  LISTENED
+} 
