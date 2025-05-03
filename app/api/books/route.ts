@@ -27,6 +27,57 @@ DYNAMIC UI COMPONENTS SUPPORTED:
 - Author filtering
 */
 
+// export async function GET(request: Request) {
+//   try {
+//     const session = (await getServerSession(authOptions)) as Session & {
+//       user: { id: string };
+//     };
+
+//     if (!session?.user?.id) {
+//       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+//     }
+
+//     const { searchParams } = new URL(request.url);
+//     const status = searchParams.get("status");
+//     const search = searchParams.get("search");
+//     const genre = searchParams.get("genre");
+//     const sortBy = searchParams.get("sortBy") || "date-desc";
+
+//     // Complex query using Prisma's query builder (automatically parameterized)
+//     const books = await prisma.book.findMany({
+//       where: {
+//         userId: parseInt(session.user.id),
+//         ...(status && { status }),
+//         ...(search && {
+//           OR: [
+//             { title: { contains: search, mode: "insensitive" } },
+//             { author: { contains: search, mode: "insensitive" } },
+//           ],
+//         }),
+//         ...(genre && {
+//           genres: {
+//             array_contains: [genre],
+//           },
+//         }),
+//       },
+//       orderBy: {
+//         ...(sortBy === "date-desc" && { createdAt: "desc" }),
+//         ...(sortBy === "date-asc" && { createdAt: "asc" }),
+//         ...(sortBy === "title-asc" && { title: "asc" }),
+//         ...(sortBy === "title-desc" && { title: "desc" }),
+//       },
+//     });
+
+//     return NextResponse.json(books);
+//   } catch (error) {
+//     console.error("Error fetching books:", error);
+//     return NextResponse.json(
+//       { error: "Failed to fetch books" },
+//       { status: 500 }
+//     );
+//   }
+// }
+
 export async function GET(request: Request) {
   try {
     const session = (await getServerSession(authOptions)) as Session & {
@@ -43,30 +94,37 @@ export async function GET(request: Request) {
     const genre = searchParams.get("genre");
     const sortBy = searchParams.get("sortBy") || "date-desc";
 
-    // Complex query using Prisma's query builder (automatically parameterized)
-    const books = await prisma.book.findMany({
-      where: {
-        userId: parseInt(session.user.id),
-        ...(status && { status }),
-        ...(search && {
-          OR: [
-            { title: { contains: search, mode: "insensitive" } },
-            { author: { contains: search, mode: "insensitive" } },
-          ],
-        }),
-        ...(genre && {
-          genres: {
-            array_contains: [genre],
-          },
-        }),
-      },
-      orderBy: {
-        ...(sortBy === "date-desc" && { createdAt: "desc" }),
-        ...(sortBy === "date-asc" && { createdAt: "asc" }),
-        ...(sortBy === "title-asc" && { title: "asc" }),
-        ...(sortBy === "title-desc" && { title: "desc" }),
-      },
-    });
+    // Build dynamic SQL query string
+    let query = `SELECT * FROM Book WHERE userId = ?`;
+    const params: any[] = [parseInt(session.user.id)];
+
+    if (status) {
+      query += ` AND status = ?`;
+      params.push(status);
+    }
+
+    if (search) {
+      query += ` AND (title LIKE ? OR author LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`);
+    }
+
+    if (genre) {
+      query += ` AND JSON_CONTAINS(genres, ?)`;
+      params.push(`"${genre}"`);
+    }
+
+    if (sortBy === "date-desc") {
+      query += ` ORDER BY createdAt DESC`;
+    } else if (sortBy === "date-asc") {
+      query += ` ORDER BY createdAt ASC`;
+    } else if (sortBy === "title-asc") {
+      query += ` ORDER BY title ASC`;
+    } else if (sortBy === "title-desc") {
+      query += ` ORDER BY title DESC`;
+    }
+
+    // Execute raw SQL safely using parameters
+    const books = await prisma.$queryRawUnsafe(query, ...params);
 
     return NextResponse.json(books);
   } catch (error) {
@@ -77,6 +135,7 @@ export async function GET(request: Request) {
     );
   }
 }
+
 
 export async function POST(request: Request) {
   try {

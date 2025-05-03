@@ -28,6 +28,58 @@ DYNAMIC UI COMPONENTS SUPPORTED:
 - Album filtering
 */
 
+// export async function GET(request: Request) {
+//   try {
+//     const session = (await getServerSession(authOptions)) as Session & {
+//       user: { id: string };
+//     };
+
+//     if (!session?.user?.id) {
+//       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+//     }
+
+//     const { searchParams } = new URL(request.url);
+//     const status = searchParams.get("status");
+//     const search = searchParams.get("search");
+//     const genre = searchParams.get("genre");
+//     const sortBy = searchParams.get("sortBy") || "date-desc";
+
+//     // Complex query using Prisma's query builder (automatically parameterized)
+//     const songs = await prisma.song.findMany({
+//       where: {
+//         userId: parseInt(session.user.id),
+//         ...(status && { status }),
+//         ...(search && {
+//           OR: [
+//             { title: { contains: search, mode: "insensitive" } },
+//             { artist: { contains: search, mode: "insensitive" } },
+//             { album: { contains: search, mode: "insensitive" } },
+//           ],
+//         }),
+//         ...(genre && {
+//           genres: {
+//             array_contains: [genre],
+//           },
+//         }),
+//       },
+//       orderBy: {
+//         ...(sortBy === "date-desc" && { createdAt: "desc" }),
+//         ...(sortBy === "date-asc" && { createdAt: "asc" }),
+//         ...(sortBy === "title-asc" && { title: "asc" }),
+//         ...(sortBy === "title-desc" && { title: "desc" }),
+//       },
+//     });
+
+//     return NextResponse.json(songs);
+//   } catch (error) {
+//     console.error("Error fetching songs:", error);
+//     return NextResponse.json(
+//       { error: "Failed to fetch songs" },
+//       { status: 500 }
+//     );
+//   }
+// }
+
 export async function GET(request: Request) {
   try {
     const session = (await getServerSession(authOptions)) as Session & {
@@ -44,31 +96,35 @@ export async function GET(request: Request) {
     const genre = searchParams.get("genre");
     const sortBy = searchParams.get("sortBy") || "date-desc";
 
-    // Complex query using Prisma's query builder (automatically parameterized)
-    const songs = await prisma.song.findMany({
-      where: {
-        userId: parseInt(session.user.id),
-        ...(status && { status }),
-        ...(search && {
-          OR: [
-            { title: { contains: search, mode: "insensitive" } },
-            { artist: { contains: search, mode: "insensitive" } },
-            { album: { contains: search, mode: "insensitive" } },
-          ],
-        }),
-        ...(genre && {
-          genres: {
-            array_contains: [genre],
-          },
-        }),
-      },
-      orderBy: {
-        ...(sortBy === "date-desc" && { createdAt: "desc" }),
-        ...(sortBy === "date-asc" && { createdAt: "asc" }),
-        ...(sortBy === "title-asc" && { title: "asc" }),
-        ...(sortBy === "title-desc" && { title: "desc" }),
-      },
-    });
+    let query = `SELECT * FROM Song WHERE userId = ?`;
+    const params: any[] = [parseInt(session.user.id)];
+
+    if (status) {
+      query += ` AND status = ?`;
+      params.push(status);
+    }
+
+    if (search) {
+      query += ` AND (title LIKE ? OR artist LIKE ? OR album LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    if (genre) {
+      query += ` AND JSON_CONTAINS(genres, ?)`;
+      params.push(`"${genre}"`);
+    }
+
+    if (sortBy === "date-desc") {
+      query += ` ORDER BY createdAt DESC`;
+    } else if (sortBy === "date-asc") {
+      query += ` ORDER BY createdAt ASC`;
+    } else if (sortBy === "title-asc") {
+      query += ` ORDER BY title ASC`;
+    } else if (sortBy === "title-desc") {
+      query += ` ORDER BY title DESC`;
+    }
+
+    const songs = await prisma.$queryRawUnsafe(query, ...params);
 
     return NextResponse.json(songs);
   } catch (error) {
@@ -79,6 +135,7 @@ export async function GET(request: Request) {
     );
   }
 }
+
 
 export async function POST(request: Request) {
   try {

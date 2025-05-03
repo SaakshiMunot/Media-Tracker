@@ -49,12 +49,25 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await prisma.book.delete({
-      where: {
-        id: parseInt(params.id),
-        userId: parseInt(session.user.id),
-      },
-    });
+    // await prisma.book.delete({
+    //   where: {
+    //     id: parseInt(params.id),
+    //     userId: parseInt(session.user.id),
+    //   },
+    // });
+
+    const bookId = parseInt(params.id);
+    const userId = parseInt(session.user.id);
+
+    const result = await prisma.$executeRawUnsafe(
+      `DELETE FROM Book WHERE id = ? AND userId = ?`,
+      bookId,
+      userId
+    );
+
+    if (result === 0) {
+      return NextResponse.json({ error: "Book not found" }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

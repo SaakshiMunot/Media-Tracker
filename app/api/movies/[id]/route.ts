@@ -48,12 +48,21 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await prisma.movie.delete({
-      where: {
-        id: parseInt(params.id),
-        userId: parseInt(session.user.id),
-      },
-    });
+    // await prisma.movie.delete({
+    //   where: {
+    //     id: parseInt(params.id),
+    //     userId: parseInt(session.user.id),
+    //   },
+    // });
+    const result = await prisma.$executeRaw`
+      DELETE FROM Movie
+      WHERE id = ${parseInt(params.id)} AND userId = ${parseInt(session.user.id)}
+    `;
+
+      // result will be the number of affected rows
+      if (result === 0) {
+        return NextResponse.json({ error: "Movie not found" }, { status: 404 });
+      }
 
     return NextResponse.json({ success: true });
   } catch (error) {
